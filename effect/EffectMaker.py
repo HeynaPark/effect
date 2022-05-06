@@ -25,6 +25,8 @@ class MyWindow(QMainWindow, ui):
         self.key =10
         self.bt_start.clicked.connect(self.play)
         self.bt_track.clicked.connect(self.track)
+        
+        self.frame = 0
     
     def open(self):
         fileName, _ = QFileDialog.getOpenFileName(self,
@@ -41,6 +43,7 @@ class MyWindow(QMainWindow, ui):
         self.cap = cap
 
         while cap.isOpened():
+            frame = self.frame
             ret, frame = cap.read()
             if not ret:
                 print("No Frame.")
@@ -67,7 +70,7 @@ class MyWindow(QMainWindow, ui):
             
     def track(self):
         
-        frame = self.play.frame
+        frame = self.frame
         tracker = cv2.TrackerCSRT_create()
         
         rc = cv2.selectROI('frame',frame)

@@ -18,7 +18,7 @@
     <item>
      <layout class="QVBoxLayout" name="verticalLayout" stretch="1,10">
       <item>
-       <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="1,1,1,1,1">
+       <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="1,0,0,0,1,1,1,1,0">
         <item>
          <spacer name="horizontalSpacer">
           <property name="orientation">
@@ -31,6 +31,23 @@
            </size>
           </property>
          </spacer>
+        </item>
+        <item>
+         <widget class="QRadioButton" name="radio_pts">
+          <property name="text">
+           <string>pts (DM-&gt;manual)</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QRadioButton" name="radio_pts_toDM">
+          <property name="text">
+           <string>pts(manual-&gt;DM)</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout_4"/>
         </item>
         <item>
          <widget class="QPushButton" name="pb_import">
@@ -66,6 +83,13 @@
           </property>
          </spacer>
         </item>
+        <item>
+         <widget class="QRadioButton" name="radio_adj">
+          <property name="text">
+           <string>adj (manual-&gt;DM)</string>
+          </property>
+         </widget>
+        </item>
        </layout>
       </item>
       <item>
@@ -88,7 +112,7 @@
      <x>0</x>
      <y>0</y>
      <width>1118</width>
-     <height>20</height>
+     <height>22</height>
     </rect>
    </property>
   </widget>
