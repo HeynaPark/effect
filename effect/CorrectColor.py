@@ -10,6 +10,7 @@ from PyQt5 import QtGui
 import cv2
 import os
 import numpy as np
+import math
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
@@ -75,7 +76,7 @@ class MyWindow(QMainWindow, ui):
                 else:
                     bw_color_scope[-(vals[valCnt]-255)][width]= 255
         
-        plt.subplot(2,2,1)            
+        plt.subplot(1,2,1)            
         plt.imshow(bw_color_scope, 'gray')
         plt.title('Waveform'),plt.xticks([]),plt.yticks([])
         plt.show() 
@@ -84,14 +85,14 @@ class MyWindow(QMainWindow, ui):
         wavePlot.plot(bw_color_scope)
         self.canvas.draw()
         
-    def ShowWaveformRGB(self):
+    def ShowRGBparade(self):
         cimg = cv2.imread(self.filename)
         b,g,r = cv2.split(cimg)    
         
         img_w = cimg.shape[1]
       
         #scope_len = int(img_w/div)
-        scope_len = img_w
+        scope_len = int(img_w/4)
         div = int(img_w/scope_len)
         
         b_color_scope = np.zeros((256, scope_len+1), dtype=int)
@@ -125,25 +126,22 @@ class MyWindow(QMainWindow, ui):
         
         b_show_color_scope = cv2.merge((b_color_scope,background,background))
         b_plt_color_scope = cv2.merge((background,background,b_color_scope))
-        plt.subplot(222)
-        plt.imshow(b_plt_color_scope)
-        plt.title('Blue Color Scope'),plt.xticks([]), plt.yticks([])
-        plt.show()
-       
+    
         g_show_color_scope = cv2.merge((background,g_color_scope,background))
-       # g_plt_color_scope = cv2.merge((background,g_color_scope,background))
-        plt.subplot(223)
-        plt.imshow(g_show_color_scope)
-        plt.title('Green Color Scope'),plt.xticks([]), plt.yticks([])
-        plt.show()
+
         
         r_show_color_scope = cv2.merge((background,background,r_color_scope))
         r_plt_color_scope = cv2.merge((r_color_scope, background,background))
-        plt.subplot(224)
-        plt.imshow(r_plt_color_scope)
-        plt.title('Red Color Scope'),plt.xticks([]), plt.yticks([])
-        plt.draw()
+
+
+        temp = np.hstack((r_plt_color_scope,g_show_color_scope))
+        parade = np.hstack((temp,b_plt_color_scope))
         
+        plt.subplot(122)
+        plt.imshow(parade)
+        plt.title('RGB parade'),plt.xticks([]), plt.yticks([])
+        plt.show()
+       
         
         
     def ShowHistogram(self):
@@ -160,15 +158,87 @@ class MyWindow(QMainWindow, ui):
         self.canvas.draw()
         
     def ShowVectorScope(self):
+        scale_factor = 2
+        src = cv2.imread(self.filename)
+        B, G, R = src[:,:,0], src[:,:,1], src[:,:,2]
+
+        Y = (0.299 * R) + (0.587 * G) + (0.114 * B)
+        Cb = (-0.169 * R) - (0.331 * G) + (0.499 * B) + 128*scale_factor
+        Cr = (0.499 * R) - (0.418 * G) - (0.0813 * B) + 128*scale_factor
+
+        # traditional vectorscope orientation:
+        Cr = 256*scale_factor - Cr
+        #Cb = 256-Cb
+
+        cols = 512
+        rows = 512
         margin = 10
-        dotRadius = 2
-        vectorLen =8
+
+
+        dst = np.zeros((cols, rows, 3), dtype=src.dtype)
+
+        center_x = int(cols/2)
+        center_y = int(rows/2)
+
+        radius = int(rows/2 - margin)
+
+        outerlineColor = (0,100,100)
+        outerlineThick = 1
+
+        cv2.circle(dst,(center_x, center_y),radius, outerlineColor,outerlineThick,8)
+
+
+        cv2.line(dst,(center_x-radius, center_y),(center_x+radius,center_y),outerlineColor,outerlineThick)
+        cv2.line(dst,(center_x, center_y-radius),(center_x,center_y+radius),outerlineColor,outerlineThick)
+
+        #draw I/Q lines
+        rad_iq = 33. *math.pi/180.
+        grid_x = int(np.float(center_x) + np.float64(radius)*math.cos(rad_iq))
+        grid_y = int(np.float(center_y) - np.float64(radius)*math.sin(rad_iq))
+        grid_x_end = int(np.float(center_x) + np.float64(radius)*math.cos(rad_iq+math.pi))
+        grid_y_end = int(np.float(center_y) - np.float64(radius)*math.sin(rad_iq+math.pi))
+        cv2.line(dst,(grid_x, grid_y),(grid_x_end, grid_y_end),outerlineColor,outerlineThick)
+
+
+
+        #draw grid
+        large_thick_ratio = 0.99
+        small_thick_ratio = 0.95
+
+        for i in range(0,360,5):
+            theta = np.float64(i)/180*math.pi
+            if(i%10)==10:
+                r_s = np.float64(radius)*large_thick_ratio
+            else:
+                r_s = np.float64(radius)*small_thick_ratio
+            xs =  int(np.float(center_x) + np.float64(radius)*math.cos(theta))
+            ys =  int(np.float(center_y) - np.float64(radius)*math.sin(theta))
+            xe =  int(np.float(center_x) + np.float64(r_s)*math.cos(theta))
+            ye =  int(np.float(center_y) - np.float64(r_s)*math.sin(theta))
+            cv2.line(dst,(xs,ys),(xe,ye),outerlineColor,outerlineThick)
+
+        for x in range(src.shape[0]):
+            for y in range(src.shape[1]):
+                dst[int(Cr[x, y]), int(Cb[x, y])] = np.array([B[x, y], G[x, y], R[x, y]])
+
+        cv2.imshow('vectorscope',dst)
+
+        cv2.waitKey(0)
+        
+        # plt.subplot(2,2,4)            
+        # plt.imshow(dst, 'vectorscope')
+        # plt.title('vectorscope'),plt.xticks([]),plt.yticks([])
+        # plt.show() 
+           
+           
+           
+           
             
     def scope(self):
         self.ShowWaveform()
         self.ShowHistogram()
-        self.ShowWaveformRGB()
-        
+        self.ShowRGBparade()
+        self.ShowVectorScope()
 
 
 if __name__ == "__main__":
