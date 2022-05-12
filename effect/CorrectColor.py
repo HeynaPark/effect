@@ -13,6 +13,10 @@ import numpy as np
 import math
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+import time
+
+
+
 
 ui = uic.loadUiType("color_correction.ui")[0]
 
@@ -24,6 +28,7 @@ class MyWindow(QMainWindow, ui):
         self.setupUi(self)
         
         self.pb_open.clicked.connect(self.open)
+        self.pb_import.clicked.connect(self.OpenImages)
         self.pb_scope.clicked.connect(self.scope)
         
         self.image = None
@@ -32,12 +37,15 @@ class MyWindow(QMainWindow, ui):
         self.canvas = FigureCanvas(self.fig)
         self.histLayout.addWidget(self.canvas)
         
-     
-        
+        self.pos = 0
+        self.total = 0
+        self.img_list = None
+        self.width_resize = 480
+        self.height_resize = 270
     
     def open(self):
         fileName, _ = QFileDialog.getOpenFileName(self,
-                            "Open Video File",'','All File(*);;"Images (*.png *.jpeg *.jpg *.bmp *.gif)')
+                            "Open image File",'D:/color/test','All File(*);;"Images (*.png *.jpeg *.jpg *.bmp *.gif)')
         self.filename = fileName
         
         if fileName:
@@ -51,9 +59,75 @@ class MyWindow(QMainWindow, ui):
             self.label.setPixmap(pixmap)
            
             
+   
+    def ShowImage(self, image=None, fileName=None):
+            if image == None:
+                fileName = self.img_list[self.pos]
+                image = QImage(fileName)
+            if image.isNull():
+                QMessageBox.information(self, "Image Viewer",
+                                        "Cannot load %s." % fileName)
+                return
+            image = cv2.imread(self.img_list[self.pos])
+            self.label.setPixmap(QPixmap.fromImage(image))
+
+    def OpenImages(self):
+            
+        img_list,_ = QFileDialog.getOpenFileNames(self,"Open Folder",'','All File(*.png *.jpg()')
+        
+        self.img_list = img_list
+        
+        self.total = len(img_list)
+        if img_list:
+            image = cv2.imread(self.img_list[self.pos])
+            self.ShowImage(image = self.toQImage(image))
+    
+    def toQImage(self, im, copy=False):
+        if im is None:
+            return QImage()
+        if im.dtype == np.uint8:
+            if len(im.shape) == 2:
+                qim = QImage(im.data, im.shape[1], im.shape[0], im.strides[0], QImage.Format_Indexed8)
+                qim.setColorTable(self.gray_color_table)
+                return qim.copy() if copy else qim
+            elif len(im.shape) == 3:
+                if im.shape[2] == 3:
+                    qim = QImage(im.data, im.shape[1], im.shape[0], im.strides[0], QImage.Format_RGB888)
+                    return qim.copy() if copy else qim
+                elif im.shape[2] == 4:
+                    qim = QImage(im.data, im.shape[1], im.shape[0], im.strides[0], QImage.Format_ARGB32)
+                    return qim.copy() if copy else qim    
+          
+  
+           
+    def keyPressEvent(self, e):
+        if e.key() == 65:
+            if not self.pos == 0:
+                self.pos -= 1
+                image = cv2.imread(self.img_list[self.pos])
+                """
+                이미지 처리
+                """
+                self.ShowImage(image=self.toQImage(image))
+                print('\r' + self.img_list[self.pos], end="")
+               
+                                                
+        elif e.key() == 68:
+            self.pos += 1
+            if self.total == self.pos:
+                self.pos -= 1
+            image = cv2.imread(self.img_list[self.pos])
+            """
+            이미지 처리
+            """
+            self.ShowImage(image=self.toQImage(image))
+            print('\r' + self.img_list[self.pos], end="")
+   
+                       
             
     def ShowWaveform(self):
-        img = cv2.imread(self.filename,0)
+        src = cv2.imread(self.filename,0)
+        img = cv2.resize(src,(self.width_resize,self.height_resize))
         img_h = img.shape[0]
         img_w = img.shape[1]
         # div = 2
@@ -61,10 +135,7 @@ class MyWindow(QMainWindow, ui):
         
         scope_w = img_w
         div = round(img_w/scope_w)
-        
-        #scope_len = int(img_w/div)
-        #scope_len = int(img_w/8)
-        #scope_w = int(img_w/4)
+
        
         bw_color_scope = np.zeros((256,scope_w+1), dtype=int)
         
@@ -85,8 +156,10 @@ class MyWindow(QMainWindow, ui):
         wavePlot.plot(bw_color_scope)
         self.canvas.draw()
         
+        
     def ShowRGBparade(self):
-        cimg = cv2.imread(self.filename)
+        src = cv2.imread(self.filename)
+        cimg = cv2.resize(src,(self.width_resize,self.height_resize))
         b,g,r = cv2.split(cimg)    
         
         img_w = cimg.shape[1]
@@ -126,10 +199,7 @@ class MyWindow(QMainWindow, ui):
         
         b_show_color_scope = cv2.merge((b_color_scope,background,background))
         b_plt_color_scope = cv2.merge((background,background,b_color_scope))
-    
         g_show_color_scope = cv2.merge((background,g_color_scope,background))
-
-        
         r_show_color_scope = cv2.merge((background,background,r_color_scope))
         r_plt_color_scope = cv2.merge((r_color_scope, background,background))
 
@@ -145,21 +215,23 @@ class MyWindow(QMainWindow, ui):
         
         
     def ShowHistogram(self):
-        img = cv2.imread(self.filename,0)
+        src = cv2.imread(self.filename,0)
+        img = cv2.resize(src,(self.width_resize,self.height_resize))
         hist = cv2.calcHist([img],[0],None,[256],[0,256])
         
-        # plt.figure(2)
-        # plt.title('Histogram')
-        # plt.plot(hist)
-        # plt.show()
         
         histPlot = self.fig.add_subplot(212)
         histPlot.plot(hist)
         self.canvas.draw()
         
+        
     def ShowVectorScope(self):
+        start = time.time()
         scale_factor = 2
-        src = cv2.imread(self.filename)
+        src_ = cv2.imread(self.filename)
+        src = cv2.resize(src_,(self.width_resize,self.height_resize))
+        print("src size: ",src.shape)
+        
         B, G, R = src[:,:,0], src[:,:,1], src[:,:,2]
 
         Y = (0.299 * R) + (0.587 * G) + (0.114 * B)
@@ -183,13 +255,14 @@ class MyWindow(QMainWindow, ui):
         radius = int(rows/2 - margin)
 
         outerlineColor = (0,100,100)
+        outerlineColor_iq = (0,60,60)
         outerlineThick = 1
 
-        cv2.circle(dst,(center_x, center_y),radius, outerlineColor,outerlineThick,8)
+        cv2.circle(dst,(center_x, center_y),radius, outerlineColor,outerlineThick+1,8)
 
 
-        cv2.line(dst,(center_x-radius, center_y),(center_x+radius,center_y),outerlineColor,outerlineThick)
-        cv2.line(dst,(center_x, center_y-radius),(center_x,center_y+radius),outerlineColor,outerlineThick)
+        cv2.line(dst,(center_x-radius, center_y),(center_x+radius,center_y),outerlineColor,outerlineThick+1)
+        cv2.line(dst,(center_x, center_y-radius),(center_x,center_y+radius),outerlineColor,outerlineThick+1)
 
         #draw I/Q lines
         rad_iq = 33. *math.pi/180.
@@ -197,8 +270,23 @@ class MyWindow(QMainWindow, ui):
         grid_y = int(np.float(center_y) - np.float64(radius)*math.sin(rad_iq))
         grid_x_end = int(np.float(center_x) + np.float64(radius)*math.cos(rad_iq+math.pi))
         grid_y_end = int(np.float(center_y) - np.float64(radius)*math.sin(rad_iq+math.pi))
-        cv2.line(dst,(grid_x, grid_y),(grid_x_end, grid_y_end),outerlineColor,outerlineThick)
+        cv2.line(dst,(grid_x, grid_y),(grid_x_end, grid_y_end),outerlineColor_iq,outerlineThick)
 
+        grid_x = int(np.float(center_x) + np.float64(radius)*math.cos(math.pi*0.5+rad_iq))
+        grid_y = int(np.float(center_y) - np.float64(radius)*math.sin(math.pi*0.5+rad_iq))
+        grid_x_end = int(np.float(center_x) + np.float64(radius)*math.cos(math.pi*1.5+rad_iq))
+        grid_y_end = int(np.float(center_y) - np.float64(radius)*math.sin(math.pi*1.5+rad_iq))
+        cv2.line(dst,(grid_x, grid_y),(grid_x_end, grid_y_end),outerlineColor_iq,outerlineThick)
+                
+        col_name = ["B","Cy","G","Y","R","M"] 
+        fontType = cv2.FONT_HERSHEY_SIMPLEX
+        vec = [-20, -80, -120, -190, -250, -300]   
+            
+        for v,c in zip(vec,col_name):
+            rad_iq = v *math.pi/180.
+            x = int(np.float(center_x) + np.float64(radius)*0.7*math.cos(rad_iq))
+            y = int(np.float(center_y) - np.float64(radius)*0.7*math.sin(rad_iq))
+            cv2.putText(dst,c,(x,y),fontType,1,outerlineColor,outerlineThick,16)
 
 
         #draw grid
@@ -222,17 +310,12 @@ class MyWindow(QMainWindow, ui):
                 dst[int(Cr[x, y]), int(Cb[x, y])] = np.array([B[x, y], G[x, y], R[x, y]])
 
         cv2.imshow('vectorscope',dst)
+        print("time: ", time.time()-start)
 
         cv2.waitKey(0)
         
-        # plt.subplot(2,2,4)            
-        # plt.imshow(dst, 'vectorscope')
-        # plt.title('vectorscope'),plt.xticks([]),plt.yticks([])
-        # plt.show() 
-           
-           
-           
-           
+  
+     
             
     def scope(self):
         self.ShowWaveform()
