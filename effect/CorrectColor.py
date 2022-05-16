@@ -9,6 +9,7 @@ from PyQt5.QtCore import Qt, QSize
 from PyQt5 import QtGui
 import cv2
 import os
+from cv2 import waitKey
 import numpy as np
 import math
 from matplotlib import pyplot as plt
@@ -42,6 +43,7 @@ class MyWindow(QMainWindow, ui):
         self.img_list = None
         self.width_resize = 480
         self.height_resize = 270
+        self.filename = None
     
     def open(self):
         fileName, _ = QFileDialog.getOpenFileName(self,
@@ -59,56 +61,35 @@ class MyWindow(QMainWindow, ui):
             self.label.setPixmap(pixmap)
            
             
-   
-    def ShowImage(self, image=None, fileName=None):
-            if image == None:
-                fileName = self.img_list[self.pos]
-                image = QImage(fileName)
-            if image.isNull():
-                QMessageBox.information(self, "Image Viewer",
-                                        "Cannot load %s." % fileName)
-                return
-            image = cv2.imread(self.img_list[self.pos])
-            self.label.setPixmap(QPixmap.fromImage(image))
+
+    def ShowImage(self, fileName=None):
+        image = QImage(fileName)
+        pixmap = QPixmap.fromImage(image)
+        pixmap = pixmap.scaled(QSize(960,540),aspectRatioMode=Qt.KeepAspectRatio)
+        self.label.setPixmap(pixmap)     
+
 
     def OpenImages(self):
             
-        img_list,_ = QFileDialog.getOpenFileNames(self,"Open Folder",'','All File(*.png *.jpg()')
+        img_list,_ = QFileDialog.getOpenFileNames(self,"Open Folder",'D:/color/test','All File(*.png *.jpg()')
         
         self.img_list = img_list
         
         self.total = len(img_list)
+        self.filename = self.img_list[self.pos]
         if img_list:
-            image = cv2.imread(self.img_list[self.pos])
-            self.ShowImage(image = self.toQImage(image))
+            self.ShowImage(self.filename)
     
-    def toQImage(self, im, copy=False):
-        if im is None:
-            return QImage()
-        if im.dtype == np.uint8:
-            if len(im.shape) == 2:
-                qim = QImage(im.data, im.shape[1], im.shape[0], im.strides[0], QImage.Format_Indexed8)
-                qim.setColorTable(self.gray_color_table)
-                return qim.copy() if copy else qim
-            elif len(im.shape) == 3:
-                if im.shape[2] == 3:
-                    qim = QImage(im.data, im.shape[1], im.shape[0], im.strides[0], QImage.Format_RGB888)
-                    return qim.copy() if copy else qim
-                elif im.shape[2] == 4:
-                    qim = QImage(im.data, im.shape[1], im.shape[0], im.strides[0], QImage.Format_ARGB32)
-                    return qim.copy() if copy else qim    
-          
-  
+
            
     def keyPressEvent(self, e):
         if e.key() == 65:
             if not self.pos == 0:
                 self.pos -= 1
-                image = cv2.imread(self.img_list[self.pos])
-                """
-                이미지 처리
-                """
-                self.ShowImage(image=self.toQImage(image))
+                self.filename = self.img_list[self.pos]
+                self.ShowImage(self.filename)
+                self.scope()
+    
                 print('\r' + self.img_list[self.pos], end="")
                
                                                 
@@ -116,23 +97,22 @@ class MyWindow(QMainWindow, ui):
             self.pos += 1
             if self.total == self.pos:
                 self.pos -= 1
-            image = cv2.imread(self.img_list[self.pos])
-            """
-            이미지 처리
-            """
-            self.ShowImage(image=self.toQImage(image))
+            self.filename = self.img_list[self.pos]
+            self.ShowImage(self.filename)
+            self.scope()
+
+
             print('\r' + self.img_list[self.pos], end="")
    
                        
             
-    def ShowWaveform(self):
-        src = cv2.imread(self.filename,0)
+    def ShowWaveform(self, fileName=None):
+        
+        src = cv2.imread(fileName,0)
         img = cv2.resize(src,(self.width_resize,self.height_resize))
         img_h = img.shape[0]
         img_w = img.shape[1]
-        # div = 2
-        # scope_w = int(img_w/div)
-        
+
         scope_w = img_w
         div = round(img_w/scope_w)
 
@@ -146,19 +126,20 @@ class MyWindow(QMainWindow, ui):
                     bw_color_scope[-(vals[valCnt]-255)][width] = cnts[valCnt]
                 else:
                     bw_color_scope[-(vals[valCnt]-255)][width]= 255
-        
-        plt.subplot(1,2,1)            
+        #plt.clf()
+        # plt.subplot(1,2,1)        
+        plt.figure(figsize=(16,9))    
         plt.imshow(bw_color_scope, 'gray')
-        plt.title('Waveform'),plt.xticks([]),plt.yticks([])
+        # plt.title('Waveform'),plt.xticks([]),plt.yticks([])
         plt.show() 
+        plt.pause(0.0001)
+        plt.clf()
+      
         
-        wavePlot = self.fig.add_subplot(211)
-        wavePlot.plot(bw_color_scope)
-        self.canvas.draw()
         
         
-    def ShowRGBparade(self):
-        src = cv2.imread(self.filename)
+    def ShowRGBparade(self, fileName = None):
+        src = cv2.imread(fileName)
         cimg = cv2.resize(src,(self.width_resize,self.height_resize))
         b,g,r = cv2.split(cimg)    
         
@@ -207,10 +188,14 @@ class MyWindow(QMainWindow, ui):
         temp = np.hstack((r_plt_color_scope,g_show_color_scope))
         parade = np.hstack((temp,b_plt_color_scope))
         
-        plt.subplot(122)
+        
+    
+        #plt.subplot(122)
         plt.imshow(parade)
         plt.title('RGB parade'),plt.xticks([]), plt.yticks([])
         plt.show()
+        plt.pause(0.001)
+        plt.clf()
        
         
         
@@ -225,10 +210,10 @@ class MyWindow(QMainWindow, ui):
         self.canvas.draw()
         
         
-    def ShowVectorScope(self):
+    def ShowVectorScope(self, fileName = None):
         start = time.time()
         scale_factor = 2
-        src_ = cv2.imread(self.filename)
+        src_ = cv2.imread(fileName)
         src = cv2.resize(src_,(self.width_resize,self.height_resize))
         print("src size: ",src.shape)
         
@@ -318,10 +303,10 @@ class MyWindow(QMainWindow, ui):
      
             
     def scope(self):
-        self.ShowWaveform()
-        self.ShowHistogram()
-        self.ShowRGBparade()
-        self.ShowVectorScope()
+        #self.ShowWaveform(self.filename)
+        # self.ShowHistogram()
+        self.ShowRGBparade(self.filename)
+        self.ShowVectorScope(self.filename)
 
 
 if __name__ == "__main__":
